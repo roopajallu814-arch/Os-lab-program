@@ -1,0 +1,152 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAX_BLOCKS 20
+#define MAX_PROCESSES 20
+
+// Structure to represent memory blocks
+typedef struct {
+    int id;
+    int size;
+    int original_size;
+    int allocated_to; // -1 if free, otherwise holds process ID
+} Block;
+
+// Structure to represent process requests
+typedef struct {
+    int id;
+    int size;
+    int is_allocated;
+} Process;
+
+// Helper function to reset blocks and processes for the next strategy simulation
+void reset_data(Block blocks[], int b_count, Process processes[], int p_count) {
+    for (int i = 0; i < b_count; i++) {
+        blocks[i].size = blocks[i].original_size;
+        blocks[i].allocated_to = -1;
+    }
+    for (int i = 0; i < p_count; i++) {
+        processes[i].is_allocated = 0;
+    }
+}
+
+// Helper function to print results
+void print_results(Block blocks[], int b_count, Process processes[], int p_count, const char* strategy_name) {
+    printf("\n--- %s Allocation Results ---\n", strategy_name);
+    printf("Block ID\tBlock Size\tAllocated Process ID\tProcess Size\n");
+    for (int i = 0; i < b_count; i++) {
+        if (blocks[i].allocated_to != -1) {
+            printf("%d\t\t%d\t\tP%d\t\t\t%d\n", 
+                   blocks[i].id, blocks[i].original_size, 
+                   processes[blocks[i].allocated_to].id, processes[blocks[i].allocated_to].size);
+        } else {
+            printf("%d\t\t%d\t\tNot Allocated\t\t-\n", blocks[i].id, blocks[i].original_size);
+        }
+    }
+
+    printf("\nUnallocated Processes: ");
+    int none = 1;
+    for (int i = 0; i < p_count; i++) {
+        if (!processes[i].is_allocated) {
+            printf("P%d(%d KB) ", processes[i].id, processes[i].size);
+            none = 0;
+        }
+    }
+    if (none) printf("None");
+    printf("\n");
+}
+
+// 1. FIRST FIT Strategy
+void first_fit(Block blocks[], int b_count, Process processes[], int p_count) {
+    for (int i = 0; i < p_count; i++) {
+        for (int j = 0; j < b_count; j++) {
+            // Allocate the first block that is free and large enough
+            if (blocks[j].allocated_to == -1 && blocks[j].size >= processes[i].size) {
+                blocks[j].allocated_to = i;
+                blocks[j].size -= processes[i].size; // Internal fragmentation remains in block
+                processes[i].is_allocated = 1;
+                break; 
+            }
+        }
+    }
+    print_results(blocks, b_count, processes, p_count, "First Fit");
+}
+
+// 2. BEST FIT Strategy
+void best_fit(Block blocks[], int b_count, Process processes[], int p_count) {
+    for (int i = 0; i < p_count; i++) {
+        int best_idx = -1;
+        for (int j = 0; j < b_count; j++) {
+            if (blocks[j].allocated_to == -1 && blocks[j].size >= processes[i].size) {
+                // Find the block that leaves the smallest leftover fragment
+                if (best_idx == -1 || blocks[j].size < blocks[best_idx].size) {
+                    best_idx = j;
+                }
+            }
+        }
+        if (best_idx != -1) {
+            blocks[best_idx].allocated_to = i;
+            blocks[best_idx].size -= processes[i].size;
+            processes[i].is_allocated = 1;
+        }
+    }
+    print_results(blocks, b_count, processes, p_count, "Best Fit");
+}
+
+// 3. WORST FIT Strategy
+void worst_fit(Block blocks[], int b_count, Process processes[], int p_count) {
+    for (int i = 0; i < p_count; i++) {
+        int worst_idx = -1;
+        for (int j = 0; j < b_count; j++) {
+            if (blocks[j].allocated_to == -1 && blocks[j].size >= processes[i].size) {
+                // Find the block that leaves the largest leftover fragment
+                if (worst_idx == -1 || blocks[j].size > blocks[worst_idx].size) {
+                    worst_idx = j;
+                }
+            }
+        }
+        if (worst_idx != -1) {
+            blocks[worst_idx].allocated_to = i;
+            blocks[worst_idx].size -= processes[i].size;
+            processes[i].is_allocated = 1;
+        }
+    }
+    print_results(blocks, b_count, processes, p_count, "Worst Fit");
+}
+
+int main() {
+    int b_count, p_count;
+    Block blocks[MAX_BLOCKS];
+    Process processes[MAX_PROCESSES];
+
+    // Sample Input or Hardcoded values for demonstration
+    // Block sizes: 100, 500, 200, 300, 600
+    int sample_blocks[] = {100, 500, 200, 300, 600};
+    b_count = 5;
+    for (int i = 0; i < b_count; i++) {
+        blocks[i].id = i + 1;
+        blocks[i].original_size = sample_blocks[i];
+    }
+
+    // Process requests: 212, 417, 112, 426
+    int sample_processes[] = {212, 417, 112, 426};
+    p_count = 4;
+    for (int i = 0; i < p_count; i++) {
+        processes[i].id = i + 1;
+        processes[i].size = sample_processes[i];
+    }
+
+    printf("Initial Memory Blocks: 100 KB, 500 KB, 200 KB, 300 KB, 600 KB\n");
+    printf("Incoming Process Requests: P1(212 KB), P2(417 KB), P3(112 KB), P4(426 KB)\n");
+
+    // Execute simulations
+    first_fit(blocks, b_count, processes, p_count);
+    
+    reset_data(blocks, b_count, processes, p_count);
+    best_fit(blocks, b_count, processes, p_count);
+    
+    reset_data(blocks, b_count, processes, p_count);
+    worst_fit(blocks, b_count, processes, p_count);
+
+    return 0;
+}
