@@ -1,0 +1,96 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+// Shared Resource
+int shared_data = 0;
+int read_count = 0;
+
+// Semaphores
+sem_t wrt;
+sem_t mutex;
+
+// Reader Thread Function
+void* reader(void* arg) {
+    int id = *((int*)arg);
+    
+    // Simulate thinking/arrival time
+    usleep(rand() % 100000);
+
+    // --- Entry Section ---
+    sem_wait(&mutex); // Lock read_count updates
+    read_count++;
+    if (read_count == 1) {
+        sem_wait(&wrt); // First reader blocks writers
+    }
+    sem_post(&mutex); // Unlock read_count updates
+
+    // --- Critical Section (Reading) ---
+    printf("[READER %d] Inside. Read Shared Data as: %d\n", id, shared_data);
+    usleep(rand() % 50000); // Simulate reading time
+
+    // --- Exit Section ---
+    sem_wait(&mutex); // Lock read_count updates
+    read_count--;
+    if (read_count == 0) {
+        sem_post(&wrt); // Last reader wakes up waiting writers
+    }
+    sem_post(&mutex); // Unlock read_count updates
+
+    printf("[READER %d] Left the critical section.\n", id);
+    return NULL;
+}
+
+// Writer Thread Function
+void* writer(void* arg) {
+    int id = *((int*)arg);
+    
+    // Simulate thinking/arrival time
+    usleep(rand() % 150000);
+
+    // --- Entry Section ---
+    sem_wait(&wrt); // Exclusive lock for writers
+
+    // --- Critical Section (Writing) ---
+    shared_data += 10; // Modify data
+    printf("[WRITER %d] Inside. Updated Shared Data to: %d\n", id, shared_data);
+    usleep(rand() % 100000); // Simulate writing time
+
+    // --- Exit Section ---
+    sem_post(&wrt); // Release exclusive lock
+
+    printf("[WRITER %d] Left the critical section.\n", id);
+    return NULL;
+}
+
+int main(void) {
+    pthread_t r_threads[3], w_threads[2];
+    int r_ids[3] = {1, 2, 3};
+    int w_ids[2] = {1, 2};
+
+    printf("===== READERS-WRITERS SEMAPHORE SIMULATION =====\n\n");
+
+    // Initialize Semaphores
+    sem_init(&wrt, 0, 1);
+    sem_init(&mutex, 0, 1);
+
+    // Create Writer and Reader threads
+    pthread_create(&w_threads[0], NULL, writer, &w_ids[0]);
+    pthread_create(&r_threads[0], NULL, reader, &r_ids[0]);
+    pthread_create(&r_threads[1], NULL, reader, &r_ids[1]);
+    pthread_create(&w_threads[1], NULL, writer, &w_ids[1]);
+    pthread_create(&r_threads[2], NULL, reader, &r_ids[2]);
+
+    // Wait for all threads to finish execution loops
+    for (int i = 0; i < 3; i++) pthread_join(r_threads[i], NULL);
+    for (int i = 0; i < 2; i++) pthread_join(w_threads[i], NULL);
+
+    // Destroy Semaphores
+    sem_destroy(&wrt);
+    sem_destroy(&mutex);
+
+    printf("\nExecution finalized. Integrity of shared data preserved.\n");
+    return 0;
+}
