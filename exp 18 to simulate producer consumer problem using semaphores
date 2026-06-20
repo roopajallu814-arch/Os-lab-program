@@ -1,0 +1,101 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 5  // Maximum capacity of the shared buffer
+#define TOTAL_ITEMS 10 // Total number of items to produce and consume
+
+int buffer[BUFFER_SIZE];
+int in = 0;  // Points to the next empty slot for the producer
+int out = 0; // Points to the next full slot for the consumer
+
+// Semaphores
+sem_t empty;
+sem_t full;
+pthread_mutex_t mutex;
+
+void* producer(void* arg) {
+    for (int i = 1; i <= TOTAL_ITEMS; i++) {
+        // Wait/Decrement empty slots count
+        sem_wait(&empty);
+        
+        // Lock the critical section
+        pthread_mutex_lock(&mutex);
+
+        // Produce an item and place it in the buffer
+        buffer[in] = i;
+        printf("[PRODUCER] Produced Item %d at buffer slot %d\n", i, in);
+        in = (in + 1) % BUFFER_SIZE; // Circular buffer increment
+
+        // Unlock the critical section
+        pthread_mutex_unlock(&mutex);
+        
+        // Signal/Increment full slots count
+        sem_post(&full);
+
+        // Sleep to simulate varying processing speeds
+        usleep(rand() % 100000); 
+    }
+    return NULL;
+}
+
+void* consumer(void* arg) {
+    for (int i = 1; i <= TOTAL_ITEMS; i++) {
+        // Wait/Decrement full slots count
+        sem_wait(&full);
+        
+        // Lock the critical section
+        pthread_mutex_lock(&mutex);
+
+        // Consume an item from the buffer
+        int item = buffer[out];
+        printf("[CONSUMER] Consumed Item %d from buffer slot %d\n", item, out);
+        out = (out + 1) % BUFFER_SIZE; // Circular buffer increment
+
+        // Unlock the critical section
+        pthread_mutex_unlock(&mutex);
+        
+        // Signal/Increment empty slots count
+        sem_post(&empty);
+
+        // Sleep to simulate varying processing speeds
+        usleep(rand() % 150000); 
+    }
+    return NULL;
+}
+
+int main(void) {
+    pthread_t prod_thread, cons_thread;
+
+    printf("===== PRODUCER-CONSUMER SEMAPHORE SIMULATION =====\n\n");
+
+    // Initialize Semaphores
+    // sem_init(&sem, pshared, value); 0 means shared among threads of same process
+    sem_init(&empty, 0, BUFFER_SIZE); 
+    sem_init(&full, 0, 0);            
+    pthread_mutex_init(&mutex, NULL);
+
+    // Create parallel execution threads
+    if (pthread_create(&prod_thread, NULL, producer, NULL) != 0) {
+        perror("Failed to create Producer thread");
+        return 1;
+    }
+    if (pthread_create(&cons_thread, NULL, consumer, NULL) != 0) {
+        perror("Failed to create Consumer thread");
+        return 1;
+    }
+
+    // Wait for both threads to finish execution loops completely
+    pthread_join(prod_thread, NULL);
+    pthread_join(cons_thread, NULL);
+
+    // Clean up synchronization objects
+    sem_destroy(&empty);
+    sem_destroy(&full);
+    pthread_mutex_destroy(&mutex);
+
+    printf("\nExecution completed successfully. Safe synchronization preserved.\n");
+    return 0;
+}
