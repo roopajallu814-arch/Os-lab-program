@@ -1,0 +1,205 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define FILENAME "employees.dat"
+#define MAX_NAME 50
+
+// Structure representing a single record fixed in memory size
+struct Employee {
+    int id;
+    char name[MAX_NAME];
+    double salary;
+};
+
+// Function Prototypes
+void add_employee(void);
+void display_all(void);
+void modify_employee(void);
+void search_employee(void);
+void clear_input_buffer(void);
+
+int main(void) {
+    int choice;
+
+    while (1) {
+        printf("\n===== EMPLOYEE RANDOM ACCESS FILE SYSTEM =====\n");
+        printf("1. Add Employee Record\n");
+        printf("2. Display All Employees\n");
+        printf("3. Modify Employee (Random Access via Record ID)\n");
+        printf("4. Search Employee (Random Access)\n");
+        printf("5. Exit\n");
+        printf("Enter your choice: ");
+        fflush(stdout);
+
+        if (scanf("%d", &choice) != 1) {
+            printf("Invalid input. Please enter an integer.\n");
+            clear_input_buffer();
+            continue;
+        }
+        clear_input_buffer();
+
+        switch (choice) {
+            case 1: add_employee(); break;
+            case 2: display_all(); break;
+            case 3: modify_employee(); break;
+            case 4: search_employee(); break;
+            case 5: 
+                printf("Exiting system.\n");
+                return 0;
+            default: 
+                printf("Invalid selection! Try again.\n");
+        }
+    }
+    return 0;
+}
+
+// 1. Append a new employee to the end of the file
+void add_employee(void) {
+    FILE *fp = fopen(FILENAME, "ab"); // Open in append binary mode
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
+
+    struct Employee emp;
+    printf("Enter Employee ID: ");
+    fflush(stdout);
+    if (scanf("%d", &emp.id) != 1) { clear_input_buffer(); fclose(fp); return; }
+    clear_input_buffer();
+
+    printf("Enter Employee Name: ");
+    fflush(stdout);
+    if (scanf("%49s", emp.name) != 1) { clear_input_buffer(); fclose(fp); return; }
+    clear_input_buffer();
+
+    printf("Enter Salary: ");
+    fflush(stdout);
+    if (scanf("%lf", &emp.salary) != 1) { clear_input_buffer(); fclose(fp); return; }
+    clear_input_buffer();
+
+    // Write the exact struct block size to the file
+    fwrite(&emp, sizeof(struct Employee), 1, fp);
+    fclose(fp);
+    printf("Employee record added successfully!\n");
+}
+
+// 2. Read the binary file sequentially for display purposes
+void display_all(void) {
+    FILE *fp = fopen(FILENAME, "rb"); // Open in read binary mode
+    if (!fp) {
+        printf("The database is currently empty.\n");
+        return;
+    }
+
+    struct Employee emp;
+    printf("\n%-10s %-20s %-10s\n", "ID", "Name", "Salary");
+    printf("---------------------------------------------\n");
+    
+    while (fread(&emp, sizeof(struct Employee), 1, fp) == 1) {
+        printf("%-10d %-20s %-10.2f\n", emp.id, emp.name, emp.salary);
+    }
+    fclose(fp);
+}
+
+// 3. Modify data in-place using RANDOM ACCESS (fseek)
+void modify_employee(void) {
+    FILE *fp = fopen(FILENAME, "rb+"); // Open in read/write binary mode
+    if (!fp) {
+        printf("Database file not found.\n");
+        return;
+    }
+
+    int target_id;
+    printf("Enter Employee ID to modify: ");
+    fflush(stdout);
+    if (scanf("%d", &target_id) != 1) { clear_input_buffer(); fclose(fp); return; }
+    clear_input_buffer();
+
+    struct Employee emp;
+    int found = 0;
+    long record_offset = 0;
+
+    // Linearly scan just to find the record's positioning index
+    while (fread(&emp, sizeof(struct Employee), 1, fp) == 1) {
+        if (emp.id == target_id) {
+            found = 1;
+            break;
+        }
+    }
+
+    if (found) {
+        // Calculate the exact starting byte position of the current record
+        //ftell(fp) gives the position after reading, so we subtract 1 record size
+        record_offset = ftell(fp) - sizeof(struct Employee);
+
+        printf("\nCurrent Record Found:\nID: %d, Name: %s, Salary: %.2f\n", emp.id, emp.name, emp.salary);
+        printf("\nEnter New Details:\n");
+
+        printf("Enter New Name: ");
+        fflush(stdout);
+        scanf("%49s", emp.name);
+        clear_input_buffer();
+
+        printf("Enter New Salary: ");
+        fflush(stdout);
+        scanf("%lf", &emp.salary);
+        clear_input_buffer();
+
+        // RANDOM ACCESS JUMP: Move the file pointer directly back to the record position
+        fseek(fp, record_offset, SEEK_SET);
+
+        // Overwrite the specific block
+        fwrite(&emp, sizeof(struct Employee), 1, fp);
+        printf("Record updated successfully via dynamic file positioning!\n");
+    } else {
+        printf("Employee with ID %d not found.\n", target_id);
+    }
+
+    fclose(fp);
+}
+
+// 4. Search and pull records directly using Random Access mechanics
+void search_employee(void) {
+    FILE *fp = fopen(FILENAME, "rb");
+    if (!fp) {
+        printf("Database file not found.\n");
+        return;
+    }
+
+    int target_id;
+    printf("Enter Employee ID to search: ");
+    fflush(stdout);
+    scanf("%d", &target_id);
+    clear_input_buffer();
+
+    struct Employee emp;
+    int found = 0;
+
+    while (fread(&emp, sizeof(struct Employee), 1, fp) == 1) {
+        if (emp.id == target_id) {
+            // Demonstrate targeted fseek lookup logic tracking
+            long current_pos = ftell(fp) - sizeof(struct Employee);
+            fseek(fp, current_pos, SEEK_SET);
+            fread(&emp, sizeof(struct Employee), 1, fp);
+
+            printf("\n--- Record Found (Random Access Match) ---\n");
+            printf("ID    : %d\n", emp.id);
+            printf("Name  : %s\n", emp.name);
+            printf("Salary: %.2f\n", emp.salary);
+            found = 1;
+            break;
+        }
+    }
+
+    if (!found) {
+        printf("Employee with ID %d could not be found.\n", target_id);
+    }
+    fclose(fp);
+}
+
+// Helper to clear standard input buffer safely
+void clear_input_buffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
