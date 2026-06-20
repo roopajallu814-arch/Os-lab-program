@@ -1,0 +1,121 @@
+#include <stdio.h>
+#include <stdbool.h>
+
+#define P 5
+#define R 3
+
+void calculate_need(int need[P][R], int max[P][R], int alloc[P][R]);
+bool is_safe_state(int alloc[P][R], int max[P][R], int avail[R]);
+
+int main() {
+    int alloc[P][R] = {
+        {0, 1, 0},
+        {2, 0, 0},
+        {3, 0, 2},
+        {2, 1, 1},
+        {0, 0, 2}
+    };
+
+    int max[P][R] = {
+        {7, 5, 3},
+        {3, 2, 2},
+        {9, 0, 2},
+        {2, 2, 2},
+        {4, 3, 3}
+    };
+
+    int avail[R] = {3, 3, 2};
+
+    printf("===== BANKER'S ALGORITHM =====\n\n");
+
+    if (is_safe_state(alloc, max, avail))
+        printf("\nSystem is SAFE.\n");
+    else
+        printf("\nSystem is UNSAFE.\n");
+
+    return 0;
+}
+
+void calculate_need(int need[P][R], int max[P][R], int alloc[P][R]) {
+    int i, j;
+
+    for (i = 0; i < P; i++) {
+        for (j = 0; j < R; j++) {
+            need[i][j] = max[i][j] - alloc[i][j];
+        }
+    }
+}
+
+bool is_safe_state(int alloc[P][R], int max[P][R], int avail[R]) {
+    int need[P][R];
+    calculate_need(need, max, alloc);
+
+    bool finish[P] = {false};
+    int safe_sequence[P];
+    int work[R];
+
+    int i, j, k;
+
+    for (i = 0; i < R; i++)
+        work[i] = avail[i];
+
+    printf("Need Matrix:\n");
+    printf("Process\tA\tB\tC\n");
+
+    for (i = 0; i < P; i++) {
+        printf("P%d\t", i);
+        for (j = 0; j < R; j++)
+            printf("%d\t", need[i][j]);
+        printf("\n");
+    }
+
+    int count = 0;
+
+    while (count < P) {
+        bool found = false;
+
+        for (i = 0; i < P; i++) {
+
+            if (!finish[i]) {
+
+                for (j = 0; j < R; j++) {
+                    if (need[i][j] > work[j])
+                        break;
+                }
+
+                if (j == R) {
+
+                    for (k = 0; k < R; k++)
+                        work[k] += alloc[i][k];
+
+                    safe_sequence[count] = i;
+                    count++;
+                    finish[i] = true;
+                    found = true;
+
+                    printf("\nProcess P%d executed.", i);
+                    printf("\nAvailable Resources: ");
+                    printf("A=%d B=%d C=%d\n", work[0], work[1], work[2]);
+                }
+            }
+        }
+
+        if (!found) {
+            printf("\nNo Safe Sequence Exists.\n");
+            return false;
+        }
+    }
+
+    printf("\n\nSafe Sequence:\n< ");
+
+    for (i = 0; i < P; i++) {
+        printf("P%d", safe_sequence[i]);
+
+        if (i != P - 1)
+            printf(" -> ");
+    }
+
+    printf(" >\n");
+
+    return true;
+}
