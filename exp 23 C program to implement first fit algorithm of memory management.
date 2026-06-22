@@ -1,0 +1,119 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+// Structure to represent a memory block
+typedef struct Block {
+    int start;
+    int end;
+    int isAllocated;
+    int processId;
+    struct Block* next;
+} Block;
+
+// Function to create a new memory block
+Block* createBlock(int start, int end, int isAllocated, int processId) {
+    Block* newBlock = (Block*)malloc(sizeof(Block));
+    newBlock->start = start;
+    newBlock->end = end;
+    newBlock->isAllocated = isAllocated;
+    newBlock->processId = processId;
+    newBlock->next = NULL;
+    return newBlock;
+}
+
+// Function to print the current status of all FREE memory blocks
+void printMemoryStatus(Block* head) {
+    printf("Memory Status:\n");
+    Block* temp = head;
+    int foundFree = 0;
+    while (temp != NULL) {
+        if (!temp->isAllocated) {
+            printf("Free memory block %d-%d\n", temp->start, temp->end);
+            foundFree = 1;
+        }
+        temp = temp->next;
+    }
+    if (!foundFree) {
+        printf("No free memory blocks available.\n");
+    }
+}
+
+// Function to allocate memory using First Fit dynamic partitioning
+void allocateMemory(Block* head, int processId, int size) {
+    Block* temp = head;
+    while (temp != NULL) {
+        // Find the first free block that is large enough
+        if (!temp->isAllocated && (temp->end - temp->start + 1) >= size) {
+            int originalEnd = temp->end;
+            
+            // Adjust the block to match the allocation size
+            temp->end = temp->start + size - 1;
+            temp->isAllocated = 1;
+            temp->processId = processId;
+            
+            printf("Allocated memory block %d-%d to Process %d\n", temp->start, temp->end, processId);
+            
+            // If there's leftover space, slice it off into a new free block
+            if (temp->end < originalEnd) {
+                Block* nextBlock = temp->next;
+                Block* freeBlock = createBlock(temp->end + 1, originalEnd, 0, 0);
+                temp->next = freeBlock;
+                freeBlock->next = nextBlock;
+            }
+            return;
+        }
+        temp = temp->next;
+    }
+}
+
+// Function to release memory occupied by a process
+void releaseMemory(Block* head, int processId) {
+    Block* temp = head;
+    while (temp != NULL) {
+        if (temp->isAllocated && temp->processId == processId) {
+            temp->isAllocated = 0;
+            temp->processId = 0;
+            printf("Memory released by Process %d\n", processId);
+            return;
+        }
+        temp = temp->next;
+    }
+}
+
+int main() {
+    // Initial Memory Setup: Single large block from 0 to 999
+    Block* memoryHead = createBlock(0, 999, 0, 0);
+
+    // 1. Initial State
+    printMemoryStatus(memoryHead);
+
+    // 2. Process 1 requests 200 units (allocates 0-199)
+    allocateMemory(memoryHead, 1, 200);
+
+    // 3. Status check & Process 2 requests 300 units (allocates 200-499)
+    printMemoryStatus(memoryHead);
+    allocateMemory(memoryHead, 2, 300);
+
+    // 4. Status check & Process 1 is released (leaving 0-199 free)
+    printMemoryStatus(memoryHead);
+    releaseMemory(memoryHead, 1);
+
+    // 5. Status check shows isolated blocks (0-199) and (500-999)
+    printMemoryStatus(memoryHead);
+    
+    // Process 3 requests 400 units (First fit skips 0-199, allocates 500-899)
+    allocateMemory(memoryHead, 3, 400);
+
+    // 6. Final memory status check
+    printMemoryStatus(memoryHead);
+
+    // Clean up allocated linked list nodes before exiting
+    Block* temp;
+    while (memoryHead != NULL) {
+        temp = memoryHead;
+        memoryHead = memoryHead->next;
+        free(temp);
+    }
+
+    return 0;
+}
