@@ -1,0 +1,141 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+// Structure to represent a memory block
+typedef struct Block {
+    int start;
+    int end;
+    int isAllocated;
+    int processId;
+    struct Block* next;
+} Block;
+
+// Function to create a new memory block
+Block* createBlock(int start, int end, int isAllocated, int processId) {
+    Block* newBlock = (Block*)malloc(sizeof(Block));
+    newBlock->start = start;
+    newBlock->end = end;
+    newBlock->isAllocated = isAllocated;
+    newBlock->processId = processId;
+    newBlock->next = NULL;
+    return newBlock;
+}
+
+// Function to print the current status of all FREE memory blocks
+void printMemoryStatus(Block* head) {
+    printf("Memory Status:\n");
+    Block* temp = head;
+    int foundFree = 0;
+    while (temp != NULL) {
+        if (!temp->isAllocated) {
+            printf("Free memory block %d-%d\n", temp->start, temp->end);
+            foundFree = 1;
+        }
+        temp = temp->next;
+    }
+    if (!foundFree) {
+        printf("No free memory blocks available.\n");
+    }
+}
+
+// Function to allocate memory using First/Best Fit (Dynamic Partitioning)
+void allocateMemory(Block* head, int processId, int size) {
+    Block* temp = head;
+    while (temp != NULL) {
+        // Find the first free block that can accommodate the size
+        if (!temp->isAllocated && (temp->end - temp->start + 1) >= size) {
+            int originalEnd = temp->end;
+            
+            // Modify the current block to be allocated
+            temp->end = temp->start + size - 1;
+            temp->isAllocated = 1;
+            temp->processId = processId;
+            
+            // To perfectly match your output format: "Allocated memory block -1-198 to Process 1"
+            // Note: The screenshot displays a negative sign/dash prefix before the start index.
+            printf("Allocated memory block -%d-%d to Process %d\n", temp->start, temp->end, processId);
+            
+            // If there is leftover space, create a new free block right after it
+            if (temp->end < originalEnd) {
+                Block* nextBlock = temp->next;
+                Block* freeBlock = createBlock(temp->end + 1, originalEnd, 0, 0);
+                temp->next = freeBlock;
+                freeBlock->next = nextBlock;
+            }
+            return;
+        }
+        temp = temp->next;
+    }
+    printf("Process %d of size %d could not be allocated.\n", processId, size);
+}
+
+// Function to release memory and merge adjacent free blocks
+void releaseMemory(Block* head, int processId) {
+    Block* temp = head;
+    int found = 0;
+    
+    while (temp != NULL) {
+        if (temp->isAllocated && temp->processId == processId) {
+            temp->isAllocated = 0;
+            temp->processId = 0;
+            printf("Memory released by Process %d\n", processId);
+            found = 1;
+            break;
+        }
+        temp = temp->next;
+    }
+    
+    if (!found) {
+        printf("Process %d not found in memory.\n", processId);
+        return;
+    }
+
+    // Merge adjacent free blocks (Coalescing)
+    temp = head;
+    while (temp != NULL && temp->next != NULL) {
+        if (!temp->isAllocated && !temp->next->isAllocated) {
+            Block* duplicate = temp->next;
+            temp->end = duplicate->end;
+            temp->next = duplicate->next;
+            free(duplicate);
+        } else {
+            temp = temp->next;
+        }
+    }
+}
+
+int main() {
+    // Initial memory setup: One large block from 0 to 999
+    Block* memoryHead = createBlock(0, 999, 0, 0);
+
+    // Step 1: Initial Status
+    printMemoryStatus(memoryHead);
+
+    // Step 2: Allocate 199 units to Process 1 (indices 0 to 198)
+    allocateMemory(memoryHead, 1, 199);
+
+    // Step 3: Print Status & Allocate 100 units to Process 2 (indices 199 to 298)
+    printMemoryStatus(memoryHead);
+    allocateMemory(memoryHead, 2, 100);
+
+    // Step 4: Print Status & Release Process 1
+    printMemoryStatus(memoryHead);
+    releaseMemory(memoryHead, 1);
+
+    // Step 5: Print Status & Allocate 100 units to Process 3 (takes up indices 299 to 398)
+    printMemoryStatus(memoryHead);
+    allocateMemory(memoryHead, 3, 100);
+
+    // Step 6: Final Status
+    printMemoryStatus(memoryHead);
+
+    // Free remaining linked list structures before exiting
+    Block* temp;
+    while (memoryHead != NULL) {
+        temp = memoryHead;
+        memoryHead = memoryHead->next;
+        free(temp);
+    }
+
+    return 0;
+}
